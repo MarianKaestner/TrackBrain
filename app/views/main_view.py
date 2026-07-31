@@ -1,6 +1,7 @@
 from __future__ import annotations
+from models.activity_model import ActivityModel
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
@@ -73,14 +74,17 @@ class MainView(QMainWindow):
     stop_clicked = Signal()
     generate_summary_clicked = Signal()
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, model: ActivityModel, parent: QWidget | None = None, ) -> None:
         super().__init__(parent)
+        self._model = model
+
         self.setWindowTitle("TrackBrain")
         self.resize(1080, 680)
         self.setMinimumSize(860, 560)
         self.setFont(QFont("Segoe UI", 10))
 
         self._state = STATE_IDLE
+        self._next_log_entry_id = 0
 
         self._build_ui()
         self.setStyleSheet(_STYLE_SHEET)
@@ -173,12 +177,12 @@ class MainView(QMainWindow):
 
     def _build_log_card(self) -> Card:
         card = Card("Activity Log")
-        self._log_table = QTableWidget(0, 3)
-        self._log_table.setHorizontalHeaderLabels(["Time", "Activity", "Duration"])
+        self._log_table = QTableWidget(0, 2)
+        self._log_table.setHorizontalHeaderLabels(["Time", "Activity"])
         header = self._log_table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self._log_table.verticalHeader().setVisible(False)
         self._log_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._log_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -222,15 +226,21 @@ class MainView(QMainWindow):
     def set_elapsed_time(self, text: str) -> None:
         self._timer_label.setText(text)
 
-    def add_log_entry(self, timestamp: str, activity: str, duration: str) -> None:
+    @Slot(str, str)
+    def add_log_entry(self, timestamp: str, activity: str) -> int:
         """Insert a new entry at the top of the activity log."""
-        self._insert_log_row(0, (timestamp, activity, duration))
+        entry_id = self._next_log_entry_id
+        self._next_log_entry_id += 1
+        self._insert_log_row(0, entry_id, (timestamp, activity))
+        return entry_id
 
     def set_log_entries(self, entries) -> None:
         """Replace the whole log, preserving the given order."""
         self._log_table.setRowCount(0)
-        for timestamp, activity, duration in entries:
-            self._insert_log_row(self._log_table.rowCount(), (timestamp, activity, duration))
+        for timestamp, activity in entries:
+            entry_id = self._next_log_entry_id
+            self._next_log_entry_id += 1
+            self._insert_log_row(self._log_table.rowCount(), entry_id, (timestamp, activity))
 
     def clear_log(self) -> None:
         self._log_table.setRowCount(0)
@@ -244,12 +254,14 @@ class MainView(QMainWindow):
 
     # ---- helpers -------------------------------------------------------
 
-    def _insert_log_row(self, row: int, values: tuple[str, str, str]) -> None:
+    def _insert_log_row(self, row: int, entry_id: int, values: tuple[str, str]) -> None:
         self._log_table.insertRow(row)
         for column, value in enumerate(values):
             item = QTableWidgetItem(value)
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             self._log_table.setItem(row, column, item)
+        self._log_table.item(row, 0).setData(Qt.UserRole, entry_id)
 
 
 _STYLE_SHEET = """
@@ -389,9 +401,9 @@ if __name__ == "__main__":
     view = MainView()
     view.set_log_entries(
         [
-            ("09:02", "PyCharm - TrackBrain", "42m"),
-            ("08:55", "Outlook", "7m"),
-            ("08:30", "Microsoft Teams - Standup", "25m"),
+            ("09:02", "PyCharm - TrackBrain"),
+            ("08:55", "Outlook"),
+            ("08:30", "Microsoft Teams - Standup"),
         ]
     )
     view.set_summary_text(
