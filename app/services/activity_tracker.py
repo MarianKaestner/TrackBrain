@@ -26,15 +26,19 @@ class _Worker(QObject):
 
 class ActivityTracker(QObject):
     activity_changed = Signal(str, str)
+    tracking_started = Signal()
+    tracking_finished = Signal()
 
     def __init__(self):
         super().__init__()
-        self._thread = None
+        self._thread: QThread | None = None
         self._worker: _Worker | None = None
         self.activity_change_timestamp = 0
 
     @Slot()
     def start(self):
+        if self._thread is not None and self._thread.isRunning():
+            return
         self._thread = QThread()
         self._worker = _Worker()
         self._worker.moveToThread(self._thread)
@@ -42,7 +46,9 @@ class ActivityTracker(QObject):
         self._thread.started.connect(self._worker.run)
         self._worker.finished.connect(self._thread.deleteLater)
         self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.finished.connect(self.tracking_finished)
         self._thread.start()
+        self.tracking_started.emit()
 
     @Slot()
     def stop(self):

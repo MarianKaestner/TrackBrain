@@ -1,5 +1,5 @@
 from __future__ import annotations
-from models.activity_model import ActivityModel
+from ..models.activity_model import ActivityModel
 
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QFont
