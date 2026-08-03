@@ -20,7 +20,8 @@ class Controller:
 
     def _connect_tracker_to_main_view(self):
         self.tracker.tracking_started.connect(lambda: self.view.set_tracking_state("running"))
-        self.tracker.tracking_started.connect(lambda: self.view.set_tracking_state("idle"))
+        self.tracker.tracking_finished.connect(lambda: self.view.set_tracking_state("idle"))
+        self.tracker.time_changed.connect(self.view.set_elapsed_time)
 
     def _connect_model_to_view(self):
         self.model.log_added.connect(self.view.add_log_entry)

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ..models.activity_model import ActivityModel
+from models.activity_model import ActivityModel
 
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QFont
@@ -223,6 +223,7 @@ class MainView(QMainWindow):
         self._pause_btn.setEnabled(state in (STATE_RUNNING, STATE_PAUSED))
         self._stop_btn.setEnabled(state in (STATE_RUNNING, STATE_PAUSED))
 
+    @Slot(str)
     def set_elapsed_time(self, text: str) -> None:
         self._timer_label.setText(text)
 
