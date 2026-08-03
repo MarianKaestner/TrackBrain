@@ -10,6 +10,7 @@ class _Worker(QObject):
 
     def __init__(self):
         super().__init__()
+        self._supposed_to_run = False
         self._current_activity = ""
         self._start_time = datetime.now()
         self._current_elapsed_time = ""
@@ -18,14 +19,18 @@ class _Worker(QObject):
         self._timer.timeout.connect(self._run)
 
     def start(self):
+        self._supposed_to_run = True
         self._timer.start()
         self._start_time = datetime.now()
 
     def stop(self):
-        self._timer.stop()
-        self.finished.emit()
+        self._supposed_to_run = False
 
     def _run(self):
+        if not self._supposed_to_run:
+            self._timer.stop()
+            self.finished.emit()
+            return
         elapsed_time = self._get_elapsed_time()
         if elapsed_time != self._current_elapsed_time:
             self._current_time = elapsed_time
@@ -51,13 +56,14 @@ class ActivityTracker(QObject):
 
     def __init__(self):
         super().__init__()
+        self.running = False
         self._thread: QThread | None = None
         self._worker: _Worker | None = None
         self.activity_change_timestamp = 0
 
     @Slot()
     def start(self):
-        if self._thread is not None and self._thread.isRunning():
+        if self.running:
             return
         self._thread = QThread()
         self._worker = _Worker()
@@ -65,16 +71,19 @@ class ActivityTracker(QObject):
         self._worker.activity_changed.connect(self._handle_new_activity)
         self._worker.elapsed_time_changed.connect(self._handle_new_time)
         self._thread.started.connect(self._worker.start)
+        self._worker.finished.connect(self._thread.quit)
         self._worker.finished.connect(self._thread.deleteLater)
         self._worker.finished.connect(self._worker.deleteLater)
-        self._worker.finished.connect(self.tracking_finished)
+        self._worker.finished.connect(self.tracking_finished.emit)
         self._thread.start()
         self.tracking_started.emit()
+        self.running = True
 
     @Slot()
     def stop(self):
-        if self._worker:
+        if self._worker and self._thread:
             self._worker.stop()
+            self.running = False
 
     @Slot()
     def pause(self):

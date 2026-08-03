@@ -17,6 +17,7 @@ class Controller:
 
     def _connect_main_view_to_tracker(self):
         self.view.start_clicked.connect(self.tracker.start)
+        self.view.stop_clicked.connect(self.tracker.stop)
 
     def _connect_tracker_to_main_view(self):
         self.tracker.tracking_started.connect(lambda: self.view.set_tracking_state("running"))
