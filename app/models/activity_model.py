@@ -5,6 +5,7 @@ from datetime import datetime
 
 class ActivityModel(QObject):
     log_added = Signal(str, str)
+    log_cleared = Signal()
 
     def __init__(self):
         super().__init__()
@@ -17,3 +18,8 @@ class ActivityModel(QObject):
         self._log.append(self._new_log)
         print("Added log for", activity)
         self.log_added.emit(self._new_log[0], self._new_log[1])
+
+    @Slot()
+    def clear_log(self) -> None:
+        self._log.clear()
+        self.log_cleared.emit()

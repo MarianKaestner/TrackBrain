@@ -18,14 +18,20 @@ class Controller:
     def _connect_main_view_to_tracker(self):
         self.view.start_clicked.connect(self.tracker.start)
         self.view.stop_clicked.connect(self.tracker.stop)
+        self.view.pause_clicked.connect(self.tracker.pause)
 
     def _connect_tracker_to_main_view(self):
         self.tracker.tracking_started.connect(lambda: self.view.set_tracking_state("running"))
+        self.tracker.tracking_resumed.connect(lambda: self.view.set_tracking_state("running"))
+        self.tracker.tracking_paused.connect(lambda: self.view.set_tracking_state("paused"))
         self.tracker.tracking_finished.connect(lambda: self.view.set_tracking_state("idle"))
+
         self.tracker.time_changed.connect(self.view.set_elapsed_time)
 
     def _connect_model_to_view(self):
         self.model.log_added.connect(self.view.add_log_entry)
+        self.model.log_cleared.connect(self.view.clear_log)
 
     def _connect_tracker_to_model(self):
         self.tracker.activity_changed.connect(self.model.add_log)
+        self.tracker.tracking_started.connect(self.model.clear_log)
