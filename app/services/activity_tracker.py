@@ -2,10 +2,19 @@ import pywinctl as pwc
 from datetime import datetime, timedelta
 from PySide6.QtCore import QObject, Signal, Slot, QThread, QTimer
 
+from services.storage import Storage
+
 
 STATE_IDLE = "idle"
 STATE_RUNNING = "running"
 STATE_PAUSED = "paused"
+
+
+def _format_timedelta(elapsed: timedelta) -> str:
+    total_seconds = int(elapsed.total_seconds())
+    h, rem = divmod(total_seconds, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
 
 
 class _Worker(QObject):
@@ -45,11 +54,7 @@ class _Worker(QObject):
             self.activity_changed.emit(activity)
 
     def _get_elapsed_time(self) -> str:
-        elapsed = datetime.now() - self.start_time
-        total_seconds = int(elapsed.total_seconds())
-        h, rem = divmod(total_seconds, 3600)
-        m, s = divmod(rem, 60)
-        return f"{h:02d}:{m:02d}:{s:02d}"
+        return _format_timedelta(datetime.now() - self.start_time)
 
 
 class ActivityTracker(QObject):
@@ -60,13 +65,20 @@ class ActivityTracker(QObject):
     tracking_resumed = Signal()
     tracking_finished = Signal()
 
-    def __init__(self):
+    def __init__(self, storage: Storage):
         super().__init__()
-        self.status = STATE_IDLE
+        self._storage = storage
         self._thread: QThread | None = None
         self._worker: _Worker | None = None
         self._start_time = datetime.now()
         self._accumulated_elapsed = timedelta()
+
+        restored_status, restored_elapsed_seconds = storage.load_state()
+        self._accumulated_elapsed = timedelta(seconds=restored_elapsed_seconds)
+        # A "running" state on disk means the app quit without a clean
+        # pause (e.g. crash); treat it like a pause so no time is lost.
+        self.status = STATE_PAUSED if restored_status in (STATE_RUNNING, STATE_PAUSED) else STATE_IDLE
+        self.initial_elapsed_display = _format_timedelta(self._accumulated_elapsed)
 
     @Slot()
     def start(self):
@@ -95,14 +107,17 @@ class ActivityTracker(QObject):
         else:
             raise ValueError(f"status is not supposed to be {self.status}")
         self.status = STATE_RUNNING
+        self._persist_state()
 
     @Slot()
     def stop(self):
         if self.status != STATE_IDLE and self._worker and self._thread:
             self._worker.stop()
             self._thread.quit()
-            self.tracking_finished.emit()
+            self._accumulated_elapsed = timedelta()
             self.status = STATE_IDLE
+            self._persist_state()
+            self.tracking_finished.emit()
 
     @Slot()
     def pause(self):
@@ -110,9 +125,10 @@ class ActivityTracker(QObject):
             self._accumulated_elapsed = datetime.now() - self._start_time
             self._worker.stop()
             self._thread.quit()
+            self.status = STATE_PAUSED
+            self._persist_state()
             self._handle_new_activity("Pause")
             self.tracking_paused.emit()
-            self.status = STATE_PAUSED
         elif self.status == STATE_PAUSED:
             self.start()
 
@@ -123,3 +139,11 @@ class ActivityTracker(QObject):
     @Slot()
     def _handle_new_time(self, time: str) -> None:
         self.time_changed.emit(time)
+        self._persist_state()
+
+    def _persist_state(self) -> None:
+        if self.status == STATE_RUNNING:
+            elapsed = datetime.now() - self._start_time
+        else:
+            elapsed = self._accumulated_elapsed
+        self._storage.save_state(self.status, elapsed.total_seconds())

@@ -14,6 +14,7 @@ class Controller:
         self._connect_tracker_to_main_view()
         self._connect_tracker_to_model()
         self._connect_model_to_view()
+        self._restore_state()
 
     def _connect_main_view_to_tracker(self):
         self.view.start_clicked.connect(self.tracker.start)
@@ -31,7 +32,13 @@ class Controller:
     def _connect_model_to_view(self):
         self.model.log_added.connect(self.view.add_log_entry)
         self.model.log_cleared.connect(self.view.clear_log)
+        self.model.log_loaded.connect(self.view.set_log_entries)
 
     def _connect_tracker_to_model(self):
         self.tracker.activity_changed.connect(self.model.add_log)
         self.tracker.tracking_started.connect(self.model.clear_log)
+
+    def _restore_state(self):
+        self.model.load()
+        self.view.set_tracking_state(self.tracker.status)
+        self.view.set_elapsed_time(self.tracker.initial_elapsed_display)

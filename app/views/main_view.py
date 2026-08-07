@@ -227,6 +227,12 @@ class MainView(QMainWindow):
     def set_elapsed_time(self, text: str) -> None:
         self._timer_label.setText(text)
 
+    def closeEvent(self, event) -> None:
+        """Pause an active recording before the window closes."""
+        if self._state == STATE_RUNNING:
+            self.pause_clicked.emit()
+        super().closeEvent(event)
+
     @Slot(str, str)
     def add_log_entry(self, timestamp: str, activity: str) -> int:
         """Insert a new entry at the top of the activity log."""
