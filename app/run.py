@@ -2,7 +2,7 @@ import sys
 
 from controllers.controller import Controller
 from services.activity_tracker import ActivityTracker
-from services.storage import Storage
+from services.sqlite_storage import Storage
 from views.main_view import MainView
 from models.activity_model import ActivityModel
 
@@ -15,4 +15,6 @@ view = MainView(model)
 tracker = ActivityTracker(storage)
 controller = Controller(model, view, tracker)
 view.show()
-sys.exit(app.exec())
+exit_code = app.exec()
+storage.close()
+sys.exit(exit_code)

@@ -2,7 +2,7 @@ import pywinctl as pwc
 from datetime import datetime, timedelta
 from PySide6.QtCore import QObject, Signal, Slot, QThread, QTimer
 
-from services.storage import Storage
+from services.sqlite_storage import Storage
 
 
 STATE_IDLE = "idle"
@@ -46,7 +46,7 @@ class _Worker(QObject):
             return
         elapsed_time = self._get_elapsed_time()
         if elapsed_time != self._current_elapsed_time:
-            self._current_time = elapsed_time
+            self._current_elapsed_time = elapsed_time
             self.elapsed_time_changed.emit(elapsed_time)
         activity = pwc.getActiveWindowTitle()
         if activity and activity != self._current_activity:
@@ -104,7 +104,7 @@ class ActivityTracker(QObject):
         if self.status == STATE_RUNNING:
             return
         if self.status == STATE_IDLE:
-            self.accumulated_elapsed = timedelta()
+            self._accumulated_elapsed = timedelta()
             self._start_time = datetime.now()
         elif self.status == STATE_PAUSED:
             self._start_time = datetime.now() - self.accumulated_elapsed
@@ -125,24 +125,29 @@ class ActivityTracker(QObject):
             self.tracking_resumed.emit()
         else:
             raise ValueError(f"status is not supposed to be {self.status}")
-        self.status = STATE_RUNNING
+        self._status = STATE_RUNNING
+        self._persist_state()
 
     @Slot()
     def stop(self):
         if self.status != STATE_IDLE and self._worker and self._thread:
             self._worker.stop()
             self._thread.quit()
-            self.accumulated_elapsed = timedelta()
-            self.status = STATE_IDLE
+            self._thread.wait()
+            self._accumulated_elapsed = timedelta()
+            self._status = STATE_IDLE
+            self._persist_state()
             self.tracking_finished.emit()
 
     @Slot()
     def pause(self):
         if self.status == STATE_RUNNING and self._worker and self._thread:
-            self.accumulated_elapsed = datetime.now() - self._start_time
+            self._accumulated_elapsed = datetime.now() - self._start_time
             self._worker.stop()
             self._thread.quit()
-            self.status = STATE_PAUSED
+            self._thread.wait()
+            self._status = STATE_PAUSED
+            self._persist_state()
             self._handle_new_activity("Pause")
             self.tracking_paused.emit()
         elif self.status == STATE_PAUSED:

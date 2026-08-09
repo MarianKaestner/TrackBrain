@@ -1,7 +1,7 @@
 from PySide6.QtCore import Signal, Slot, QObject
 from typing import List, Tuple
 
-from services.storage import Storage
+from services.sqlite_storage import Storage
 
 
 class ActivityModel(QObject):
@@ -15,6 +15,11 @@ class ActivityModel(QObject):
         self._log: List[Tuple[str, str]] = []
         self._new_log: Tuple[str, str] | None = None
 
+    # Properties
+    @property
+    def log(self) -> List[Tuple[str, str]]:
+        return list(self._log)
+
     def load(self) -> None:
         """Restore the log mirrored on disk and notify listeners."""
         self._log = self._storage.get_log_entries()
@@ -25,7 +30,6 @@ class ActivityModel(QObject):
         self._new_log = (time, activity)
         self._log.append(self._new_log)
         self._storage.add_log_entry(time, activity)
-        print("Added log for", activity)
         self.log_added.emit(self._new_log[0], self._new_log[1])
 
     @Slot()
