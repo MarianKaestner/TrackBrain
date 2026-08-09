@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QTextEdit,
     QVBoxLayout,
-    QWidget,
+    QWidget, QFileDialog, QDialog,
 )
 
 STATE_IDLE = "idle"
@@ -73,6 +73,7 @@ class MainView(QMainWindow):
     pause_clicked = Signal()
     stop_clicked = Signal()
     generate_summary_clicked = Signal()
+    save_requested = Signal(str)
 
     def __init__(self, model: ActivityModel, parent: QWidget | None = None, ) -> None:
         super().__init__(parent)
@@ -161,8 +162,10 @@ class MainView(QMainWindow):
         self._pause_btn.setObjectName("pauseButton")
         self._stop_btn = QPushButton("Stop")
         self._stop_btn.setObjectName("stopButton")
+        self._save_btn = QPushButton("Save")
+        self._save_btn.setObjectName("saveButton")
 
-        for btn in (self._start_btn, self._pause_btn, self._stop_btn):
+        for btn in (self._start_btn, self._pause_btn, self._stop_btn, self._save_btn):
             btn.setCursor(Qt.PointingHandCursor)
             btn.setMinimumHeight(40)
             btn.setMinimumWidth(110)
@@ -171,6 +174,7 @@ class MainView(QMainWindow):
         self._start_btn.clicked.connect(self.start_clicked)
         self._pause_btn.clicked.connect(self.pause_clicked)
         self._stop_btn.clicked.connect(self.stop_clicked)
+        self._save_btn.clicked.connect(self._emit_save_path)
 
         card.body_layout().addLayout(row)
         return card
@@ -227,6 +231,12 @@ class MainView(QMainWindow):
     def set_elapsed_time(self, text: str) -> None:
         self._timer_label.setText(text)
 
+    def closeEvent(self, event) -> None:
+        """Pause an active recording before the window closes."""
+        if self._state == STATE_RUNNING:
+            self.pause_clicked.emit()
+        super().closeEvent(event)
+
     @Slot(str, str)
     def add_log_entry(self, timestamp: str, activity: str) -> int:
         """Insert a new entry at the top of the activity log."""
@@ -263,6 +273,18 @@ class MainView(QMainWindow):
             item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             self._log_table.setItem(row, column, item)
         self._log_table.item(row, 0).setData(Qt.UserRole, entry_id)
+
+    @Slot()
+    def _emit_save_path(self) -> None:
+        dialog = QFileDialog(self)
+        dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+        dialog.setNameFilter("CSV (*.csv)")
+        if dialog.exec():
+            filename = dialog.selectedFiles()
+            if filename:
+                self.save_requested.emit(filename[0])
+
 
 
 _STYLE_SHEET = """
@@ -353,6 +375,12 @@ QPushButton#stopButton:hover {
     color: #c62828;
 }
 
+QPushButton#saveButton:hover {
+    background-color: #eaf6ec;
+    border-color: #0f9d58;
+    color: #0f7a45;
+}
+
 QTableWidget {
     background-color: #ffffff;
     border: none;
@@ -398,8 +426,11 @@ if __name__ == "__main__":
 
     from PySide6.QtWidgets import QApplication
 
+    from models.activity_model import ActivityModel
+    from services.sqlite_storage import Storage
+
     app = QApplication(sys.argv)
-    view = MainView()
+    view = MainView(ActivityModel(Storage(":memory:")))
     view.set_log_entries(
         [
             ("09:02", "PyCharm - TrackBrain"),
