@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QWidget
 
 from services.activity_tracker import ActivityTracker
 from services.csv_saver import CSVSaver
+from services.llm import LLM, SummaryWorker
 from views.main_view import MainView
 from models.activity_model import ActivityModel
 
@@ -11,12 +12,15 @@ class Controller:
         self.view = view
         self.tracker = tracker
         self.csv_saver = CSVSaver(model)
+        self.llm = LLM(model)
+        self._summary_worker: SummaryWorker | None = None
 
         self._connect_main_view_to_tracker()
         self._connect_tracker_to_main_view()
         self._connect_tracker_to_model()
         self._connect_model_to_view()
         self._connect_view_to_csv_saver()
+        self._connect_view_to_llm()
         self._restore_state()
 
     def _connect_main_view_to_tracker(self):
@@ -43,6 +47,22 @@ class Controller:
 
     def _connect_view_to_csv_saver(self):
         self.view.save_requested.connect(self.csv_saver.save_log)
+
+    def _connect_view_to_llm(self):
+        self.view.generate_summary_clicked.connect(self._generate_summary)
+
+    def _generate_summary(self):
+        self.view.set_summary_generating(True)
+        self.view.set_summary_text("Generating summary...")
+
+        self._summary_worker = SummaryWorker(self.llm)
+        self._summary_worker.summary_ready.connect(self._on_summary_ready)
+        self._summary_worker.finished.connect(self._summary_worker.deleteLater)
+        self._summary_worker.start()
+
+    def _on_summary_ready(self, summary: str):
+        self.view.set_summary_text(summary)
+        self.view.set_summary_generating(False)
 
     def _restore_state(self):
         self.model.load()
