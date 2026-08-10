@@ -9,7 +9,7 @@ class LLM:
         self._activity_model = activity_model
 
     def get_summary(self) -> str:
-        response: ChatResponse = chat(model="gemma4:e2b", messages=[
+        response: ChatResponse = chat(model="gemma4:e2b", keep_alive=0, messages=[
             {
                 "role": "user",
                 "content": f"Do a short summary of the work activities from the log below in natural language. "
